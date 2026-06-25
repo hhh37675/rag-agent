@@ -1,0 +1,30 @@
+# 模型路径与训练阶段
+model_name_or_path: qwen/Qwen2.5-1.5B-Instruct  # 本地模型所在的路径
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all              # 对所有线性层应用 LoRA，提升微调效果
+
+# 数据集配置
+dataset: company_qa           # 指向在 dataset_info.json 中注册的 company_qa.json
+template: qwen                # Qwen 系列专属的 prompt 模板
+cutoff_len: 1024              # 截断长度，控制显存占用
+max_samples: 1000
+overwrite_cache: true
+preprocessing_num_workers: 16
+
+# 输出与日志
+output_dir: saves/Qwen2.5-1.5B/lora/sft_v1
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+
+# 核心训练超参数
+per_device_train_batch_size: 4      # 批处理大小，配合梯度累加防止 OOM
+gradient_accumulation_steps: 4      # 梯度累加步数，等效 Batch Size = 16
+learning_rate: 2.0e-4               # LoRA 推荐的初始学习率
+num_train_epochs: 5.0               # 训练轮数
+lr_scheduler_type: cosine           # 余弦退火学习率衰减
+warmup_ratio: 0.1
+fp16: true                          # 开启半精度训练，大幅降低显存占用

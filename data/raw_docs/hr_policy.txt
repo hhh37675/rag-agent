@@ -1,0 +1,10 @@
+# 自动将项目根目录添加到系统搜索路径
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+# 然后再导入你的模块
+from api_app.core.config import BASE_DIR, VECTOR_DB_PATH
+公司请假制度：
+1. 事假：3天以内由直属主管审批；超过3天需逐级上报至部门总监。
+2. 病假：需提供正规医院诊断证明。
+3. 提交方式：所有请假申请必须提前在公司 OA 系统中填写表单。

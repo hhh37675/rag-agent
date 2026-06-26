@@ -9,9 +9,13 @@ VECTOR_DB_PATH = os.path.join(BASE_DIR, "vector_db")
 # 模型配置
 EMBEDDING_MODEL = LOCAL_MODEL_PATH if os.path.exists(LOCAL_MODEL_PATH) else "BAAI/bge-large-zh-v1.5"
 LLM_MODEL = "qwen2.5:1.5b"
-
-# Ollama 配置
 OLLAMA_BASE_URL = "http://localhost:11434"
 
-# 检索配置
-SEARCH_K = 3
+# RAG 检索与重排配置
+RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+
+# 第一阶段（粗排）：BM25 + 向量混合检索的召回数量
+RETRIEVAL_K = 10
+
+# 第二阶段（精排）：Reranker 重排后最终喂给大模型的片段数量 (取最精华的部分)
+RERANK_TOP_K = 2

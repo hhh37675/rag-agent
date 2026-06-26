@@ -1,5 +1,9 @@
 """FastAPI 服务入口"""
 import os
+
+import uuid
+from langchain_core.messages import HumanMessage
+
 # 在所有导入之前执行，强制禁止所有子进程调用 GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -19,7 +23,6 @@ from api_app.services.agent import create_agent
 
 # 使用字典存储全局应用状态，避免全局变量污染
 app_state = {}
-chat_history_buffer = []
 
 #1. 生命周期管理
 @asynccontextmanager
@@ -58,47 +61,61 @@ async def root():
         "version": "2.0",
         "status": "running"
     }
-
+# Agent 框架与模型能力不匹配无法检索向量数据库
+# @app.post("/api/chat", response_model=ChatResponse)
+# async def chat_endpoint(request: ChatRequest):
+#     try:
+#         agent = app_state.get("agent")
+#         # 提取或生成当前用户的唯一会话 ID
+#         session_id = request.session_id if request.session_id else str(uuid.uuid4())
+#
+#         config = {
+#             "configurable": {"thread_id": session_id},
+#             "recursion_limit": 15
+#         }
+#
+#         # 构造当前用户的新问题
+#         input_message = HumanMessage(content=request.question)
+#
+#         result = await run_in_threadpool(
+#             agent.invoke,
+#             {"messages": [input_message]},
+#             config
+#         )
+#
+#         # 提取最新的一条回答 (历史记录保存在 result["messages"] 这个列表里)
+#         final_answer = result["messages"][-1].content
+#
+#         return ChatResponse(answer=final_answer, status="success")
+#
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"系统推理错误: {str(e)}")
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
-    global chat_history_buffer
-
     try:
-        agent = app_state.get("agent")
+        qa_chain = app_state.get("agent")
 
-        # 手动拼接历史记录给模型
-        history_str = "\n".join(chat_history_buffer[-5:])  # 只取最近 5 条
-        full_input = f"对话历史：\n{history_str}\n\n当前问题：{request.question}"
+        # 传统 RAG 不需要传 thread_id 和 messages，直接传 input 即可
+        result = await run_in_threadpool(
+            qa_chain.invoke,
+            {"input": request.question}
+        )
 
-        # 执行推理
-        result = await run_in_threadpool(agent.invoke, {"input": full_input})
-        answer = result.get("output", str(result)) if isinstance(result, dict) else str(result)
+        # 提取回答内容
+        final_answer = result["answer"]
 
-        # 更新历史记录
-        chat_history_buffer.append(f"问：{request.question}")
-        chat_history_buffer.append(f"答：{answer}")
+        # 终端打印调试（证明查了数据库）
+        print(f"\n🗣️ 用户提问: {request.question}")
+        print("================ 📚 后台强制查到的知识库来源 ================")
+        for idx, doc in enumerate(result.get("context", [])):
+            print(f"来源 {idx + 1}: {doc.metadata.get('source', '未知')}")
+        print("============================================================\n")
+        print(f"🤖 AI 回答: {final_answer}")
 
-        return ChatResponse(answer=answer)
+        return ChatResponse(answer=final_answer, status="success")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"系统推理错误: {str(e)}")
-
-@app.get("/api/health")
-async def health_check():
-    llm = app_state.get("llm")
-    vector_db = app_state.get("vector_db")
-
-    try:
-        if llm:
-            llm.invoke("ping")
-        ollama_status = "connected"
-    except Exception:
-        ollama_status = "disconnected"
-
-    return {
-        "ollama": ollama_status,
-        "vector_db": "connected" if vector_db else "disconnected",
-        "embedding_model": EMBEDDING_MODEL
-    }
 
 # ================= 4. 服务启动 =================
 if __name__ == "__main__":
